@@ -604,7 +604,7 @@ class TunnelContainer: NSObject {
     var deactivationTimer: Timer?
     var onDeactivated: (() -> Void)?
 
-    fileprivate var tunnelProvider: NETunnelProviderManager {
+    var tunnelProvider: NETunnelProviderManager {
         didSet {
             isActivateOnDemandEnabled = tunnelProvider.isOnDemandEnabled && tunnelProvider.isEnabled
             hasOnDemandRules = !(tunnelProvider.onDemandRules ?? []).isEmpty
