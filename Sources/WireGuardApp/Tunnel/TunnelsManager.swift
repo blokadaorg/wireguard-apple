@@ -17,6 +17,7 @@ protocol TunnelsManagerActivationDelegate: AnyObject {
     func tunnelActivationAttemptSucceeded(tunnel: TunnelContainer) // startTunnel succeeded
     func tunnelActivationFailed(tunnel: TunnelContainer, error: TunnelsManagerActivationError) // status didn't change to connected
     func tunnelActivationSucceeded(tunnel: TunnelContainer) // status changed to connected
+    func tunnelDeactivated(tunnel: TunnelContainer)
 }
 
 class TunnelsManager {
@@ -522,6 +523,7 @@ class TunnelsManager {
             if session.status == .disconnected {
                 tunnel.onDeactivated?()
                 tunnel.onDeactivated = nil
+                self.activationDelegate?.tunnelDeactivated(tunnel: tunnel)
             }
 
             if tunnel.status == .restarting && session.status == .disconnected {
