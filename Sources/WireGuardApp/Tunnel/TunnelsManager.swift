@@ -512,7 +512,7 @@ class TunnelsManager {
 
             wg_log(.debug, message: "Tunnel '\(tunnel.name)' connection status changed to '\(tunnel.tunnelProvider.connection.status)'")
 
-            if tunnel.isAttemptingActivation {
+            //if tunnel.isAttemptingActivation {
                 if session.status == .connected {
                     tunnel.isAttemptingActivation = false
                     self.activationDelegate?.tunnelActivationSucceeded(tunnel: tunnel)
@@ -524,9 +524,9 @@ class TunnelsManager {
                         self.activationDelegate?.tunnelActivationFailed(tunnel: tunnel, error: .activationFailed(wasOnDemandEnabled: tunnelProvider.isOnDemandEnabled))
                     }
                 }
-            }
+            //}
 
-            if session.status == .disconnected {
+            if session.status == .disconnected || session.status == .invalid {
                 tunnel.onDeactivated?()
                 tunnel.onDeactivated = nil
                 self.activationDelegate?.tunnelDeactivated(tunnel: tunnel)
@@ -653,7 +653,7 @@ class TunnelContainer: NSObject {
     }
 
     func refreshStatus() {
-        if (status == .restarting) || (status == .waiting && tunnelProvider.connection.status == .disconnected) {
+        if (status == .restarting)/* || (status == .waiting && tunnelProvider.connection.status == .disconnected)*/ {
             return
         }
         status = TunnelStatus(from: tunnelProvider.connection.status)
