@@ -17,6 +17,7 @@ protocol TunnelsManagerActivationDelegate: AnyObject {
     func tunnelActivationAttemptSucceeded(tunnel: TunnelContainer) // startTunnel succeeded
     func tunnelActivationFailed(tunnel: TunnelContainer, error: TunnelsManagerActivationError) // status didn't change to connected
     func tunnelActivationSucceeded(tunnel: TunnelContainer) // status changed to connected
+    func tunnelDeactivated(tunnel: TunnelContainer)
 }
 
 class TunnelsManager {
@@ -89,11 +90,13 @@ class TunnelsManager {
             guard let self = self else { return }
 
             let loadedTunnelProviders = managers ?? []
+            var removedTunnels: [TunnelContainer] = []
 
             for (index, currentTunnel) in self.tunnels.enumerated().reversed() {
                 if !loadedTunnelProviders.contains(where: { $0.isEquivalentTo(currentTunnel) }) {
                     // Tunnel was deleted outside the app
                     self.tunnels.remove(at: index)
+                    removedTunnels.append(currentTunnel)
                     self.tunnelsListDelegate?.tunnelRemoved(at: index, tunnel: currentTunnel)
                 }
             }
@@ -109,6 +112,10 @@ class TunnelsManager {
                         }
                     }
                     let tunnel = TunnelContainer(tunnel: loadedTunnelProvider)
+                    // Removed tunnel contains programmatically changed status, so we copying it to new one
+                    if let removedTunnel = removedTunnels.first(where: { $0.name == tunnel.name }), [TunnelStatus.restarting, TunnelStatus.reasserting, TunnelStatus.waiting].contains(removedTunnel.status) {
+                        tunnel.status = removedTunnel.status
+                    }
                     self.tunnels.append(tunnel)
                     self.tunnels.sort { TunnelsManager.tunnelNameIsLessThan($0.name, $1.name) }
                     self.tunnelsListDelegate?.tunnelAdded(at: self.tunnels.firstIndex(of: tunnel)!)
@@ -505,7 +512,7 @@ class TunnelsManager {
 
             wg_log(.debug, message: "Tunnel '\(tunnel.name)' connection status changed to '\(tunnel.tunnelProvider.connection.status)'")
 
-            if tunnel.isAttemptingActivation {
+            //if tunnel.isAttemptingActivation {
                 if session.status == .connected {
                     tunnel.isAttemptingActivation = false
                     self.activationDelegate?.tunnelActivationSucceeded(tunnel: tunnel)
@@ -517,11 +524,12 @@ class TunnelsManager {
                         self.activationDelegate?.tunnelActivationFailed(tunnel: tunnel, error: .activationFailed(wasOnDemandEnabled: tunnelProvider.isOnDemandEnabled))
                     }
                 }
-            }
+            //}
 
-            if session.status == .disconnected {
+            if session.status == .disconnected || session.status == .invalid {
                 tunnel.onDeactivated?()
                 tunnel.onDeactivated = nil
+                self.activationDelegate?.tunnelDeactivated(tunnel: tunnel)
             }
 
             if tunnel.status == .restarting && session.status == .disconnected {
@@ -596,7 +604,7 @@ class TunnelContainer: NSObject {
     var deactivationTimer: Timer?
     var onDeactivated: (() -> Void)?
 
-    fileprivate var tunnelProvider: NETunnelProviderManager {
+    var tunnelProvider: NETunnelProviderManager {
         didSet {
             isActivateOnDemandEnabled = tunnelProvider.isOnDemandEnabled && tunnelProvider.isEnabled
             hasOnDemandRules = !(tunnelProvider.onDemandRules ?? []).isEmpty
@@ -645,7 +653,7 @@ class TunnelContainer: NSObject {
     }
 
     func refreshStatus() {
-        if (status == .restarting) || (status == .waiting && tunnelProvider.connection.status == .disconnected) {
+        if (status == .restarting)/* || (status == .waiting && tunnelProvider.connection.status == .disconnected)*/ {
             return
         }
         status = TunnelStatus(from: tunnelProvider.connection.status)
