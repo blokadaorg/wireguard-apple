@@ -17,6 +17,7 @@ protocol TunnelsManagerActivationDelegate: AnyObject {
     func tunnelActivationAttemptSucceeded(tunnel: TunnelContainer) // startTunnel succeeded
     func tunnelActivationFailed(tunnel: TunnelContainer, error: TunnelsManagerActivationError) // status didn't change to connected
     func tunnelActivationSucceeded(tunnel: TunnelContainer) // status changed to connected
+    func tunnelDeactivated(tunnel: TunnelContainer)
 }
 
 class TunnelsManager {
@@ -511,7 +512,7 @@ class TunnelsManager {
 
             wg_log(.debug, message: "Tunnel '\(tunnel.name)' connection status changed to '\(tunnel.tunnelProvider.connection.status)'")
 
-            if tunnel.isAttemptingActivation {
+            //if tunnel.isAttemptingActivation {
                 if session.status == .connected {
                     tunnel.isAttemptingActivation = false
                     self.activationDelegate?.tunnelActivationSucceeded(tunnel: tunnel)
@@ -523,11 +524,12 @@ class TunnelsManager {
                         self.activationDelegate?.tunnelActivationFailed(tunnel: tunnel, error: .activationFailed(wasOnDemandEnabled: tunnelProvider.isOnDemandEnabled))
                     }
                 }
-            }
+            //}
 
-            if session.status == .disconnected {
+            if session.status == .disconnected || session.status == .invalid {
                 tunnel.onDeactivated?()
                 tunnel.onDeactivated = nil
+                self.activationDelegate?.tunnelDeactivated(tunnel: tunnel)
             }
 
             if tunnel.status == .restarting && session.status == .disconnected {
@@ -602,7 +604,7 @@ class TunnelContainer: NSObject {
     var deactivationTimer: Timer?
     var onDeactivated: (() -> Void)?
 
-    fileprivate var tunnelProvider: NETunnelProviderManager {
+    var tunnelProvider: NETunnelProviderManager {
         didSet {
             isActivateOnDemandEnabled = tunnelProvider.isOnDemandEnabled && tunnelProvider.isEnabled
             hasOnDemandRules = !(tunnelProvider.onDemandRules ?? []).isEmpty
@@ -651,7 +653,7 @@ class TunnelContainer: NSObject {
     }
 
     func refreshStatus() {
-        if (status == .restarting) || (status == .waiting && tunnelProvider.connection.status == .disconnected) {
+        if (status == .restarting)/* || (status == .waiting && tunnelProvider.connection.status == .disconnected)*/ {
             return
         }
         status = TunnelStatus(from: tunnelProvider.connection.status)
